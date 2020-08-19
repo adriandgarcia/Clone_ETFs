@@ -29,6 +29,7 @@ First, I pulled in the mutual fund data from Morningstar Direct. (I combined it 
 
 I combine these two data sets to create a dataset of mutual funds and ETFs, 27,681 rows, 44 columns.
 
+I added a column that shows if the data came from the ETF or MUTUAL FUND dataset. I also changed all column names to replace spaces with periods.
 
 ```{r data_upload, message=FALSE}
 
@@ -46,47 +47,75 @@ Data <- full_join(ETFs, MFs) %>%
 
 ```
 
+## Adjustment
+
+I create a new column "Name.Mod" that removes the last word from the fund name. This is where the share class type typically is located.
+
+And in the cases below I replace the name of the firm with either its alternate version in Morningstar or combined firms that are linked operationally.
+
+```{r data_udjustment, message=FALSE}
+
+Data <- Data %>%
+  mutate(
+    Name.Mod = str_replace(Name, "\\s\\w*(™)?$", ""),
+    Firm.Name = case_when(
+      Firm.Name == "SPDR State Street Global Advisors" ~ "State Street Global Advisors",
+      Firm.Name == "iShares" ~ "iShares/BlackRock",
+      Firm.Name == "BlackRock" ~ "iShares/BlackRock",
+      Firm.Name == "Calvert Research Management" ~ "Calvert/Eaton Vance",
+      Firm.Name == "Eaton Vance" ~ "Calvert/Eaton Vance",
+      Firm.Name == "Nuveen" ~ "Nuveen/TIAA Investments",
+      Firm.Name == "TIAA" ~ "Nuveen/TIAA Investments",
+      TRUE ~ as.character(Firm.Name)
+
+      )) %>% 
+      select(Name, Name.Mod, TYPE, everything())
+  
+
+```
+
 ## Matching
 
 I would like to take the full dataset created above and find cases where mutual funds and etfs match at the same shop. The easiest, most accurate way I've found to do this is to look at the following three combinations:
 
-* A fund's strategy and its management company
-* A fund's strategy and its branding name
-* A fund's strategy and it's firm name
+* A fund's strategy and its branding name (371 funds)
+* A fund's strategy and it's firm name (55 funds)
 
-I can cross reference these individual dataframes by each other to come up with 524 funds.
+I can cross reference these individual dataframes by each other to come up with 413 funds.
 
 A setback to this approach is that there are 406 rows without a strategy name. I isolated these funds and compared them to each other by their fund name (minus the last word which is usually the shareclass type). I found no matches.
 
 ```{r matching, message=FALSE}
 
-Management <- Data %>% 
-  group_by(Strategy.Name, Management.Company, TYPE) %>% 
-  summarise(COUNT = n()) %>% 
-  pivot_wider(names_from = TYPE, values_from = COUNT) %>% 
-  group_by(Strategy.Name, Management.Company)
+#We decided not to use this
 
-Mgt_Matches <- Management %>%
-  filter(!is.na(`MUTUAL FUND`) &
-           !is.na(ETF))
-
-Mgt_Matches_df <- Data %>% 
-  filter(Strategy.Name %in% Mgt_Matches$Strategy.Name &
-           !is.na(Management.Company))
+# Management <- Data %>% 
+#   group_by(Strategy.Name, Management.Company, TYPE) %>% 
+#   summarise(COUNT = n()) %>% 
+#   pivot_wider(names_from = TYPE, values_from = COUNT) %>% 
+#   group_by(Strategy.Name, Management.Company)
+# 
+# Mgt_Matches <- Management %>%
+#   filter(!is.na(`MUTUAL FUND`) &
+#            !is.na(ETF))
+# 
+# Mgt_Matches_df <- Data %>% 
+#   filter(Strategy.Name %in% Mgt_Matches$Strategy.Name &
+#            !is.na(Management.Company))
 
 ###
 
-Branding <- Data %>% 
+Brand <- Data %>% 
   group_by(Strategy.Name, Branding.Name, TYPE) %>% 
   summarise(COUNT = n()) %>% 
   pivot_wider(names_from = TYPE, values_from = COUNT) %>% 
   group_by(Strategy.Name, Branding.Name)
 
-Brand_Matches <- Branding %>%
+Brand_Matches <- Brand %>%
   filter(!is.na(`MUTUAL FUND`) &
            !is.na(ETF))
 
-Brand_Matches_df <- Data %>% 
+Brand_df <- Data %>% 
   filter(Strategy.Name %in% Brand_Matches$Strategy.Name &
            !is.na(Branding.Name) &
            !is.na(Strategy.Name)) 
@@ -103,13 +132,12 @@ Firm_Matches <- Firm %>%
   filter(!is.na(`MUTUAL FUND`) &
            !is.na(ETF))
 
-Firm_Matches_df <- Data %>% 
+Firm_df <- Data %>% 
   filter(Strategy.Name %in% Firm_Matches$Strategy.Name &
            !is.na(Firm.Name) &
            !is.na(Strategy.Name))
 
-Combined_matches <- full_join(Mgt_Matches_df, Brand_Matches_df) %>% 
-  full_join(., Firm_Matches_df)
+Combined_matches <- full_join(Brand_df, Firm_df)
 
 # Blanks <- Data %>%
 #   filter(is.na(Strategy.Name)) %>%
@@ -117,7 +145,9 @@ Combined_matches <- full_join(Mgt_Matches_df, Brand_Matches_df) %>%
 #   select(Name, Name.Mod, TYPE, everything()) %>%
 #   group_by(Name.Mod, TYPE) %>%
 #   summarise(COUNT = n()) %>%
-#   pivot_wider(names_from = TYPE, values_from = COUNT)
+#   pivot_wider(names_from = TYPE, values_from = COUNT) %>%
+#   filter(!is.na(`MUTUAL FUND`) &
+#            !is.na(ETF))
 
 ```
 
@@ -133,26 +163,24 @@ Combined_matches %>%
 
 ```
 
-To reduce the chance that funds were missed either because the strategy is blank  or slightly different I can compare funds based on their names (minus the last word where the shareclass typicall is located).
+To reduce the chance that funds were missed either because the strategy is blank or slightly different I can compare funds based on their names (minus the last word where the share class type typically is located).
 
-I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 524 matches to 581 matches.
+I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 413 matches to 507 matches.
 
 ```{r name_matches, message=FALSE}
 
 Names <- Data %>% 
-  mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>% 
-  select(Name, Name.Mod, TYPE, everything()) %>% 
   group_by(Name.Mod, TYPE) %>% 
   count() %>% 
   pivot_wider(names_from = TYPE, values_from = n) %>% 
   filter(!is.na(`MUTUAL FUND`)&!is.na(ETF))
 
-Names_Matches_df <- Data %>% 
+Names_df <- Data %>% 
   mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>% 
   filter(Name.Mod %in% Names$Name.Mod)
 
 
-Combined_matches <- full_join(Combined_matches, Names_Matches_df)
+Combined_matches <- full_join(Combined_matches, Names_df)
 
 write_csv(Combined_matches, "Matched_Data.csv")
 
@@ -173,10 +201,64 @@ Combined_matches %>%
 
 # ETFs
 
+From the data above I find 127 ETFs that are likely clones or near clones of existing mutual funds.
+
 ```{r etfs, message=FALSE}
 
 ETF_df <- Combined_matches %>% 
   filter(TYPE == "ETF")
 
 datatable(ETF_df)
+```
+
+
+Let's see which firms have the most.
+
+```{r etfs_firms, message=FALSE}
+
+ETF_df %>% 
+  group_by(Firm.Name) %>% 
+  count() %>%
+  arrange(-n) %>% 
+  ungroup() %>% 
+  top_n(10) %>% 
+  
+  
+ggplot(., mapping = aes(x = reorder(Firm.Name, n), y = n)) +
+  geom_bar(stat = "identity", fill = "#e82e3b") +
+  coord_flip() + 
+  scale_y_continuous(limits = c(0, 70)) +
+  geom_text(aes(label = n, hjust = -.4)) +
+  ggtitle("Number of Clone ETFS Created by Firm") +
+  ylab("Number of ETFs") +
+  xlab("Fund Family") +
+  theme_classic()
+
+
+```
+
+Let's see when they were created:
+
+```{r etfs_years, message=FALSE}
+
+ETF_df %>% 
+  mutate(
+    YEAR = year(Inception..Date)
+  ) %>% 
+  group_by(YEAR) %>% 
+  count() %>%
+  arrange(YEAR) %>% 
+  ungroup() %>% 
+  top_n(10) %>% 
+  
+  
+ggplot(., mapping = aes(x = YEAR, y = n)) +
+  geom_bar(stat = "identity", fill = "#e82e3b") +
+  geom_text(aes(label = n, vjust = -.4)) +
+  ggtitle("Number of Clone ETFS Created by Year") +
+  ylab("Number of ETFs") +
+  xlab("Fund Family") +
+  theme_classic()
+
+
 ```
