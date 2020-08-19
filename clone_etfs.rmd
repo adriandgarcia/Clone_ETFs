@@ -13,7 +13,7 @@ output:
     toc_float: true
 ---
 
-#Getting Started
+# Getting Started
 
 ```{r setup, message=FALSE, warning=FALSE}
 
@@ -24,6 +24,11 @@ library(DT) #For visualizing tables
 ```
 
 ## Data
+
+First, I pulled in the mutual fund data from Morningstar Direct. (I combined it using “combine_files.r”). There were 25,264 rows and 43 columns. I also pulled in ETF data from Morninstar. There were 2,417 rows and 44 columns. Data was pulled from Morningstar Direct on Aug. 18, 2020.
+
+I combine these two data sets to create a dataset of mutual funds and ETFs, 27,681 rows, 44 columns.
+
 
 ```{r data_upload, message=FALSE}
 
@@ -41,11 +46,19 @@ Data <- full_join(ETFs, MFs) %>%
 
 ```
 
-#Working
+## Matching
 
-You can also embed plots, for example:
+I would like to take the full dataset created above and find cases where mutual funds and etfs match at the same shop. The easiest, most accurate way I've found to do this is to look at the following three combinations:
 
-```{r pressure, echo=FALSE}
+* A fund's strategy and its management company
+* A fund's strategy and its branding name
+* A fund's strategy and it's firm name
+
+I can cross reference these individual dataframes by each other to come up with 524 funds.
+
+A setback to this approach is that there are 406 rows without a strategy name. I isolated these funds and compared them to each other by their fund name (minus the last word which is usually the shareclass type). I found no matches.
+
+```{r matching, message=FALSE}
 
 Management <- Data %>% 
   group_by(Strategy.Name, Management.Company, TYPE) %>% 
@@ -95,40 +108,64 @@ Firm_Matches_df <- Data %>%
            !is.na(Firm.Name) &
            !is.na(Strategy.Name))
 
-test <- full_join(Mgt_Matches_df, Brand_Matches_df) %>% 
+Combined_matches <- full_join(Mgt_Matches_df, Brand_Matches_df) %>% 
   full_join(., Firm_Matches_df)
 
-# df2 <- Data %>% 
-#   filter(Strategy.Name %in% Blanks$Strategy.Name) %>% 
-#   mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>% 
-#   select(Name, Name.Mod, TYPE, everything()) %>% 
-#   group_by(Strategy.Name, Management.Company)
-# 
-Blanks <- Data %>%
-  group_by(Strategy.Name, Management.Company) %>%
-  filter(is.na(Strategy.Name))
-# 
-# b <- df2 %>% 
-#   group_by(Name.Mod, TYPE) %>% 
-#   summarise(COUNT = n()) %>% 
+# Blanks <- Data %>%
+#   filter(is.na(Strategy.Name)) %>%
+#   mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>%
+#   select(Name, Name.Mod, TYPE, everything()) %>%
+#   group_by(Name.Mod, TYPE) %>%
+#   summarise(COUNT = n()) %>%
 #   pivot_wider(names_from = TYPE, values_from = COUNT)
 
 ```
 
 
+```{r matches_show, echo=FALSE}
+
+Combined_matches %>%
+  group_by(Strategy.Name, Firm.Name, TYPE) %>% 
+  summarise(COUNT = n()) %>% 
+  pivot_wider(names_from = TYPE, values_from = COUNT) %>% 
+  group_by(Strategy.Name, Firm.Name) %>% 
+  datatable()
+
+```
+
+To reduce the chance that funds were missed either because the strategy is blank  or slightly different I can compare funds based on their names (minus the last word where the shareclass typicall is located).
+
+I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 524 matches to 581 matches.
 
 ```{r name_matches, message=FALSE}
 
-df <- Data %>% 
+Names <- Data %>% 
   mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>% 
-  select(Name, Name.Mod, TYPE, everything())
-
-names <- df %>% 
+  select(Name, Name.Mod, TYPE, everything()) %>% 
   group_by(Name.Mod, TYPE) %>% 
   count() %>% 
   pivot_wider(names_from = TYPE, values_from = n) %>% 
   filter(!is.na(`MUTUAL FUND`)&!is.na(ETF))
 
+Names_Matches_df <- Data %>% 
+  mutate(Name.Mod = str_replace(Name, "\\s\\w*(™)?$", "")) %>% 
+  filter(Name.Mod %in% Names$Name.Mod)
+
+
+Combined_matches <- full_join(Combined_matches, Names_Matches_df)
+
+write_csv(Combined_matches, "Matched_Data.csv")
 
 ```
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r, name_matches_show, echo=FALSE}
+
+Combined_matches %>%
+  group_by(Strategy.Name, Firm.Name, TYPE) %>% 
+  summarise(COUNT = n()) %>% 
+  pivot_wider(names_from = TYPE, values_from = COUNT) %>% 
+  group_by(Strategy.Name, Firm.Name) %>% 
+  datatable()
+
+```
