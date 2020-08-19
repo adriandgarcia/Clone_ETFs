@@ -169,3 +169,14 @@ Combined_matches %>%
   datatable()
 
 ```
+
+
+# ETFs
+
+```{r etfs, message=FALSE}
+
+ETF_df <- Combined_matches %>% 
+  filter(TYPE == "ETF")
+
+datatable(ETF_df)
+```
