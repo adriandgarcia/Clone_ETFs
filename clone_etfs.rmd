@@ -78,10 +78,10 @@ Data <- Data %>%
 
 I would like to take the full dataset created above and find cases where mutual funds and etfs match at the same shop. The easiest, most accurate way I've found to do this is to look at the following three combinations:
 
-* A fund's strategy and its branding name (371 funds)
-* A fund's strategy and it's firm name (55 funds)
+* A fund's strategy and its branding name (366 funds)
+* A fund's strategy and it's firm name (369 funds)
 
-I can cross reference these individual dataframes by each other to come up with 413 funds.
+I can cross reference these individual dataframes by each other to come up with 408 funds.
 
 A setback to this approach is that there are 406 rows without a strategy name. I isolated these funds and compared them to each other by their fund name (minus the last word which is usually the shareclass type). I found no matches.
 
@@ -117,6 +117,7 @@ Brand_Matches <- Brand %>%
 
 Brand_df <- Data %>% 
   filter(Strategy.Name %in% Brand_Matches$Strategy.Name &
+           Branding.Name %in% Brand_Matches$Branding.Name &
            !is.na(Branding.Name) &
            !is.na(Strategy.Name)) 
 
@@ -134,6 +135,7 @@ Firm_Matches <- Firm %>%
 
 Firm_df <- Data %>% 
   filter(Strategy.Name %in% Firm_Matches$Strategy.Name &
+           Firm.Name %in% Firm_Matches$Firm.Name &
            !is.na(Firm.Name) &
            !is.na(Strategy.Name))
 
@@ -165,7 +167,7 @@ Combined_matches %>%
 
 To reduce the chance that funds were missed either because the strategy is blank or slightly different I can compare funds based on their names (minus the last word where the share class type typically is located).
 
-I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 413 matches to 507 matches.
+I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 408 matches to 502 matches.
 
 ```{r name_matches, message=FALSE}
 
@@ -209,6 +211,7 @@ ETF_df <- Combined_matches %>%
   filter(TYPE == "ETF")
 
 datatable(ETF_df)
+
 ```
 
 
@@ -260,5 +263,42 @@ ggplot(., mapping = aes(x = YEAR, y = n)) +
   xlab("Fund Family") +
   theme_classic()
 
+
+```
+
+TK
+
+```{r match_family, message=FALSE}
+
+aa <- Combined_matches %>% 
+  group_by(Name) %>% 
+  mutate(Count = n()) %>% 
+  pivot_wider(names_from = TYPE, values_from = Count) %>% 
+  group_by(Strategy.Name) %>% 
+  mutate(ETF = sum(ETF, na.rm = TRUE),
+         `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)) %>% 
+  select(Strategy.Name, ETF, `MUTUAL FUND`, everything())
+
+aaa <- aa %>% 
+  filter(
+    ETF > 0 &
+      `MUTUAL FUND` > 0
+  )
+
+bb <- Combined_matches %>% 
+  group_by(Name) %>% 
+  mutate(Count = n()) %>% 
+  pivot_wider(names_from = TYPE, values_from = Count) %>% 
+  group_by(Name.Mod) %>% 
+  mutate(ETF = sum(ETF, na.rm = TRUE),
+         `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)) %>% 
+  select(Name, Name.Mod, Strategy.Name, ETF, `MUTUAL FUND`, everything())
+
+
+bbb <- bb %>% 
+  filter(
+    !Name %in% aaa$Name
+  )
+    
 
 ```
