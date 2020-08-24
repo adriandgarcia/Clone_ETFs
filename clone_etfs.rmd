@@ -25,11 +25,13 @@ library(DT) #For visualizing tables
 
 ## Data
 
-First, I pulled in the mutual fund data from Morningstar Direct. (I combined it using “combine_files.r”). There were 25,264 rows and 43 columns. I also pulled in ETF data from Morninstar. There were 2,417 rows and 44 columns. Data was pulled from Morningstar Direct on Aug. 18, 2020.
+First, I pulled in the mutual fund data from Morningstar Direct. (I combined it using “combine_files.r”). There were 25,264 rows and 43 columns. I also pulled in ETF data from Morninstar. There were 2,420 rows and 44 columns. Data was pulled from Morningstar Direct on Aug. 18, 2020.
 
-I combine these two data sets to create a dataset of mutual funds and ETFs, 27,681 rows, 44 columns.
+I combine these two data sets to create a dataset of mutual funds and ETFs, 27,684 rows, 44 columns.
 
 I added a column that shows if the data came from the ETF or MUTUAL FUND dataset. I also changed all column names to replace spaces with periods.
+
+I follow the same process as above to upload data that has assset and flow information for mutual funds and ETFs.
 
 ```{r data_upload, message=FALSE}
 
@@ -38,11 +40,25 @@ MFs <- read_csv("~/Data/Clone_ETFs/Mutual_Funds/MS_MFS_081820_Full.csv",
   mutate(TYPE = "MUTUAL FUND")
 
 
-ETFs <- read_csv("~/Data/Clone_ETFs/ETFs/MS_ETFS_081820_Full.csv",
+ETFs <- read_csv("~/Data/Clone_ETFs/ETFs/MS_ETFS_082020_Full.csv",
                  guess_max = 25000) %>% 
   mutate(TYPE = "ETF")
 
 Data <- full_join(ETFs, MFs) %>% 
+  rename_all(make.names)
+
+###
+
+MFs_Assets <- read_csv("~/Data/Clone_ETFs/Mutual_Funds/MS_MFS_082020_Full.csv",
+                 guess_max = 25000) %>% 
+  mutate(TYPE = "MUTUAL FUND")
+
+
+ETFs_Assets <- read_csv("~/Data/Clone_ETFs/ETFs/MS_ETFSFLOW_082020_Full.csv",
+                 guess_max = 25000) %>% 
+  mutate(TYPE = "ETF")
+
+Data_Assets <- full_join(ETFs_Assets, MFs_Assets) %>% 
   rename_all(make.names)
 
 ```
@@ -52,6 +68,10 @@ Data <- full_join(ETFs, MFs) %>%
 I create a new column "Name.Mod" that removes the last word from the fund name. This is where the share class type typically is located.
 
 And in the cases below I replace the name of the firm with either its alternate version in Morningstar or combined firms that are linked operationally.
+
+Finally, I remove funds of funds.
+
+23,158 funds remain.
 
 ```{r data_udjustment, message=FALSE}
 
@@ -67,16 +87,34 @@ Data <- Data %>%
       Firm.Name == "Nuveen" ~ "Nuveen/TIAA Investments",
       Firm.Name == "TIAA" ~ "Nuveen/TIAA Investments",
       TRUE ~ as.character(Firm.Name)
+      )) %>% 
+      select(Name, Name.Mod, TYPE, everything()) %>% 
+  filter(
+    Fund.of..Funds != "Yes"
+  )
 
+##
+
+Data_Assets <- Data_Assets %>%
+  mutate(
+    Name.Mod = str_replace(Name, "\\s\\w*(™)?$", ""),
+    Firm.Name = case_when(
+      Firm.Name == "SPDR State Street Global Advisors" ~ "State Street Global Advisors",
+      Firm.Name == "iShares" ~ "iShares/BlackRock",
+      Firm.Name == "BlackRock" ~ "iShares/BlackRock",
+      Firm.Name == "Calvert Research Management" ~ "Calvert/Eaton Vance",
+      Firm.Name == "Eaton Vance" ~ "Calvert/Eaton Vance",
+      Firm.Name == "Nuveen" ~ "Nuveen/TIAA Investments",
+      Firm.Name == "TIAA" ~ "Nuveen/TIAA Investments",
+      TRUE ~ as.character(Firm.Name)
       )) %>% 
       select(Name, Name.Mod, TYPE, everything())
-  
 
 ```
 
-## Matching
+## Finding matches
 
-I would like to take the full dataset created above and find cases where mutual funds and etfs match at the same shop. The easiest, most accurate way I've found to do this is to look at the following three combinations:
+I would like to take the full dataset created above and find cases where mutual funds and etfs match at the same shop. The easiest, most accurate way I've found to do this is to look at the following two combinations:
 
 * A fund's strategy and its branding name (366 funds)
 * A fund's strategy and it's firm name (369 funds)
@@ -167,7 +205,7 @@ Combined_matches %>%
 
 To reduce the chance that funds were missed either because the strategy is blank or slightly different I can compare funds based on their names (minus the last word where the share class type typically is located).
 
-I come up with 149 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 408 matches to 502 matches.
+I come up with 145 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 408 matches to 498 matches.
 
 ```{r name_matches, message=FALSE}
 
@@ -203,12 +241,19 @@ Combined_matches %>%
 
 # ETFs
 
-From the data above I find 127 ETFs that are likely clones or near clones of existing mutual funds.
+## Overview
+
+From the data above I find 126 ETFs that are likely clones or near clones of existing mutual funds.
 
 ```{r etfs, message=FALSE}
 
 ETF_df <- Combined_matches %>% 
   filter(TYPE == "ETF")
+
+MF_df <- Combined_matches %>% 
+  filter(TYPE != "ETF")
+
+datatable(ETF_df)
 
 datatable(ETF_df)
 
@@ -236,7 +281,6 @@ ggplot(., mapping = aes(x = reorder(Firm.Name, n), y = n)) +
   ylab("Number of ETFs") +
   xlab("Fund Family") +
   theme_classic()
-
 
 ```
 
@@ -266,39 +310,160 @@ ggplot(., mapping = aes(x = YEAR, y = n)) +
 
 ```
 
-TK
+## ETFs & Mutual Funds
+
+I would like to pair the ETFs we've identified with the mutual funds which they are similar. I need to do this in two setps:
+
+* Isolate unique strategy names that have at least one corresponding ETF and MF (441 funds)
+* Isolate fund names (Name.Mod) that have at least one corresponding ETF and MF and don't match one of the funds above (57 funds)
 
 ```{r match_family, message=FALSE}
 
-aa <- Combined_matches %>% 
+Strat_df <- Combined_matches %>% 
+  mutate(TYPE2 = TYPE) %>% 
   group_by(Name) %>% 
   mutate(Count = n()) %>% 
   pivot_wider(names_from = TYPE, values_from = Count) %>% 
   group_by(Strategy.Name) %>% 
-  mutate(ETF = sum(ETF, na.rm = TRUE),
-         `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)) %>% 
-  select(Strategy.Name, ETF, `MUTUAL FUND`, everything())
-
-aaa <- aa %>% 
+  mutate(
+    Group = str_c("Strat", group_indices()),
+    ETF = sum(ETF, na.rm = TRUE),
+    `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)
+    ) %>% 
+  select(Strategy.Name, Group, Name, Name.Mod, ETF, `MUTUAL FUND`, TYPE2, everything()) %>% 
   filter(
     ETF > 0 &
       `MUTUAL FUND` > 0
   )
 
-bb <- Combined_matches %>% 
+NameMod_df <- Combined_matches %>% 
+  mutate(TYPE2 = TYPE) %>% 
   group_by(Name) %>% 
   mutate(Count = n()) %>% 
   pivot_wider(names_from = TYPE, values_from = Count) %>% 
   group_by(Name.Mod) %>% 
-  mutate(ETF = sum(ETF, na.rm = TRUE),
-         `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)) %>% 
-  select(Name, Name.Mod, Strategy.Name, ETF, `MUTUAL FUND`, everything())
-
-
-bbb <- bb %>% 
+  mutate(
+    Group = str_c("Name", group_indices()),
+    ETF = sum(ETF, na.rm = TRUE),
+    `MUTUAL FUND` = sum(`MUTUAL FUND`, na.rm = TRUE)) %>% 
+  select(Strategy.Name, Group, Name, Name.Mod, ETF, `MUTUAL FUND`, TYPE2, everything()) %>% 
   filter(
-    !Name %in% aaa$Name
+    !Name %in% Strat_df$Name
   )
-    
+
+ETF_Pairs <- full_join(NameMod_df, Strat_df) 
+
+```
+
+I save the above into an excel file "pairs.xls" with a sheet for those matching by
+```{r write_pairs, echo=FALSE}
+
+library(xlsx)
+
+write.xlsx(as.data.frame(Strat_df), "pairs.xlsx", sheetName = "Strategy_Pairs", 
+  col.names = TRUE, row.names = FALSE, append = FALSE)
+write.xlsx(as.data.frame(NameMod_df), "pairs.xlsx", sheetName = "Name_Pairs", 
+  col.names = TRUE, row.names = FALSE, append = TRUE)
+write.xlsx(as.data.frame(ETF_Pairs), "pairs.xlsx", sheetName = "Combined", 
+  col.names = TRUE, row.names = FALSE, append = TRUE)
+
+```
+
+# Assets
+
+## ETFs
+
+Now I want to explore how much assets and inflows these clone ETFs generated compared to their mutual fund counterparts.
+
+I'm looking at ETFs that were launched at least three years ago and in the data (ETF_df) we created above. (101 match)
+
+Then:
+* Add up outflows first six months of 2020
+** Rest of years calculated by Morningstar
+* Add up assets in 2017, 2018, 2019 as well as first six months of 2020
+
+```{r asset_etf, message=FALSE}
+
+ETF_2017 <- Data_Assets %>% 
+  filter(
+    Name %in% ETF_df$Name &
+    Inception..Date <= "2017-08-01"
+  ) %>% 
+  mutate(
+    Flows_SixMo2020 = rowSums(.[, 11:16], na.rm = TRUE),
+    Assets_2017 = rowSums(.[, 18:29], na.rm = TRUE),
+    Assets_2018 = rowSums(.[, 30:41], na.rm = TRUE),
+    Assets_2019 = rowSums(.[, 42:53], na.rm = TRUE),
+    Assets_SixMo2020 = rowSums(.[, 54:59], na.rm = TRUE)) %>% 
+  select(
+    1:6,
+    7:10,
+    61:65,
+    everything()
+  )
+
+Sum_ETF2017 <- ETF_2017 %>% 
+  summarise(
+    Flows_2017 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2017..USD, na.rm = TRUE),
+    Flows_2018 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2018..USD, na.rm = TRUE),
+    Flows_2019 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2019..USD, na.rm = TRUE),
+    Flows_SixMo2020 = sum(Flows_SixMo2020),
+    Assets_2017 = sum(Assets_2017),
+    Assets_2018 = sum(Assets_2018),
+    Assets_2019 = sum(Assets_2019),
+    Assets_SixMo2020 = sum(Assets_SixMo2020)
+  )
+
+datatable(Sum_ETF2017)
+
+```
+
+
+```{r asset_mf, message=FALSE}
+
+MF_Flows <- Data_Assets %>% 
+  filter(
+    Name %in% MF_df$Name
+  )
+
+TESTKEY <- ETF_Pairs %>% 
+  filter(
+    Name %in% ETF_2017$Name
+  )
+
+MF_2017 <- ETF_Pairs %>% 
+  filter(
+    Group %in% TESTKEY$Group &
+    TYPE2 == "MUTUAL FUND"
+  ) 
+
+MF_2017 <- Data_Assets %>% 
+  filter(
+    Name %in% MF_2017$Name,
+  ) %>% 
+  mutate(
+    Flows_SixMo2020 = rowSums(.[, 11:16], na.rm = TRUE),
+    Assets_2017 = rowSums(.[, 18:29], na.rm = TRUE),
+    Assets_2018 = rowSums(.[, 30:41], na.rm = TRUE),
+    Assets_2019 = rowSums(.[, 42:53], na.rm = TRUE),
+    Assets_SixMo2020 = rowSums(.[, 54:59], na.rm = TRUE)) %>% 
+  select(
+    1:6,
+    7:10,
+    61:65,
+    everything()
+  )
+
+Sum_MF2017 <- MF_2017 %>% 
+  summarise(
+    Flows_2017 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2017..USD, na.rm = TRUE),
+    Flows_2018 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2018..USD, na.rm = TRUE),
+    Flows_2019 = sum(Estimated.Share.Class.Net.Flow..Yearly...Year2019..USD, na.rm = TRUE),
+    Flows_SixMo2020 = sum(Flows_SixMo2020),
+    Assets_2017 = sum(Assets_2017),
+    Assets_2018 = sum(Assets_2018),
+    Assets_2019 = sum(Assets_2019),
+    Assets_SixMo2020 = sum(Assets_SixMo2020)
+  )
 
 ```
