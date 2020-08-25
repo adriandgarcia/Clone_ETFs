@@ -230,7 +230,7 @@ Names_df <- Data %>%
 
 Combined_matches <- full_join(Combined_matches, Names_df)
 
-write_csv(Combined_matches, "Matched_Data.csv")
+write_csv(Combined_matches, "~/Data/Clone_ETFs/results/Matched_Data.csv")
 
 ```
 
@@ -368,11 +368,11 @@ I save the above into an excel file "pairs.xls" with a sheet for those matching 
 
 library(xlsx)
 
-write.xlsx(as.data.frame(Strat_df), "pairs.xlsx", sheetName = "Strategy_Pairs", 
+write.xlsx(as.data.frame(Strat_df), file = "C:\\Users\\agarcia\\Documents\\Data\\Clone_ETFs\\results\\pairs.xlsx", sheetName = "Strategy_Pairs", 
   col.names = TRUE, row.names = FALSE, append = FALSE)
-write.xlsx(as.data.frame(NameMod_df), "pairs.xlsx", sheetName = "Name_Pairs", 
+write.xlsx(as.data.frame(NameMod_df), file = "C:\\Users\\agarcia\\Documents\\Data\\Clone_ETFs\\results\\pairs.xlsx", sheetName = "Name_Pairs", 
   col.names = TRUE, row.names = FALSE, append = TRUE)
-write.xlsx(as.data.frame(ETF_Pairs), "pairs.xlsx", sheetName = "Combined", 
+write.xlsx(as.data.frame(ETF_Pairs), file = "C:\\Users\\agarcia\\Documents\\Data\\Clone_ETFs\\results\\pairs.xlsx", sheetName = "Combined", 
   col.names = TRUE, row.names = FALSE, append = TRUE)
 
 ```
@@ -422,7 +422,7 @@ Sum_ETF2017 <- ETF_2017 %>%
     Assets_SixMo2020 = sum(Assets_SixMo2020)
   )
 
-write.xlsx(as.data.frame(ETF_2017), "assets.xlsx", sheetName = "ETF_Assets", 
+write.xlsx(as.data.frame(ETF_2017), file = "C:\\Users\\agarcia\\Documents\\Data\\Clone_ETFs\\results\\assets.xlsx", sheetName = "ETF_Assets", 
   col.names = TRUE, row.names = FALSE, append = FALSE)
 
 datatable(Sum_ETF2017)
@@ -465,7 +465,7 @@ MF_2017 <- Data_Assets %>%
     everything()
   )
 
-write.xlsx(as.data.frame(MF_2017), "assets.xlsx", sheetName = "MF_Assets", 
+write.xlsx(as.data.frame(MF_2017), file = "C:\\Users\\agarcia\\Documents\\Data\\Clone_ETFs\\results\\assets.xlsx", sheetName = "MF_Assets", 
   col.names = TRUE, row.names = FALSE, append = TRUE)
 
 
