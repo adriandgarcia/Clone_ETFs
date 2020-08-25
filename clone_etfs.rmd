@@ -78,6 +78,10 @@ Finally, I remove funds of funds.
 Data <- Data %>%
   mutate(
     Name.Mod = str_replace(Name, "\\s\\w*(™)?$", ""),
+    Name.Mod = case_when(
+      Name.Mod == "Fidelity® New" ~ "Fidelity® New Millennium",
+      TRUE ~ as.character(Name.Mod)
+      ),
     Firm.Name = case_when(
       Firm.Name == "SPDR State Street Global Advisors" ~ "State Street Global Advisors",
       Firm.Name == "iShares" ~ "iShares/BlackRock",
@@ -98,6 +102,10 @@ Data <- Data %>%
 Data_Assets <- Data_Assets %>%
   mutate(
     Name.Mod = str_replace(Name, "\\s\\w*(™)?$", ""),
+    Name.Mod = case_when(
+      Name.Mod == "Fidelity® New" ~ "Fidelity® New Millennium",
+      TRUE ~ as.character(Name.Mod)
+      ),
     Firm.Name = case_when(
       Firm.Name == "SPDR State Street Global Advisors" ~ "State Street Global Advisors",
       Firm.Name == "iShares" ~ "iShares/BlackRock",
@@ -205,7 +213,7 @@ Combined_matches %>%
 
 To reduce the chance that funds were missed either because the strategy is blank or slightly different I can compare funds based on their names (minus the last word where the share class type typically is located).
 
-I come up with 145 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 408 matches to 498 matches.
+I come up with 146 funds that match. I can then cross reference that list against the list I created above to add the ones I'm missing. I go from 408 matches to 499 matches.
 
 ```{r name_matches, message=FALSE}
 
@@ -414,6 +422,9 @@ Sum_ETF2017 <- ETF_2017 %>%
     Assets_SixMo2020 = sum(Assets_SixMo2020)
   )
 
+write.xlsx(as.data.frame(ETF_2017), "assets.xlsx", sheetName = "ETF_Assets", 
+  col.names = TRUE, row.names = FALSE, append = FALSE)
+
 datatable(Sum_ETF2017)
 
 ```
@@ -453,6 +464,10 @@ MF_2017 <- Data_Assets %>%
     61:65,
     everything()
   )
+
+write.xlsx(as.data.frame(MF_2017), "assets.xlsx", sheetName = "MF_Assets", 
+  col.names = TRUE, row.names = FALSE, append = TRUE)
+
 
 Sum_MF2017 <- MF_2017 %>% 
   summarise(
